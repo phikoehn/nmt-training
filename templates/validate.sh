@@ -24,8 +24,8 @@ cp model/model.npz.json $MODEL.json
 # decode
 $amun -d $GPU \
       -n --wipo \
-      -s model/vocab.<XXX SRC>.yml \
-      -t model/vocab.<XXX TGT>.yml \
+      -s data/train.bpe.<XXX SRC>.json \
+      -t data/train.bpe.<XXX TGT>.json \
       -m $MODEL \
       < $dev \
       > $MODEL.bpe

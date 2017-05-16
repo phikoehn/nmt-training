@@ -11,13 +11,18 @@ my $ensemble = 4;
 my $multiple_models = 0;
 my $step_size = 20000;
 my $guided_alignment = 0;
-my ($action,$test_s,$base_system) = (undef,undef,undef);
+my ($action,$test_s,$base_model) = (undef,undef,undef);
 my ($model,$model_tag) = ("MODEL","NMT");
 
 # from local-settings.sh: jobs submitted by qsub? yes -> get settings
 my $qsub = undef;
 if (`grep qsub_settings $RealBin/templates/local-settings.sh` =~ /^export qsub_settings="(.+)"\s*$/) {
   $qsub = $1;
+}
+# from local-settings.sh: amunmt directory
+my $amun;
+if (`grep '^export amun=' $RealBin/templates/local-settings.sh` =~ /^export amun=(.+)\/build\/amun\s*$/) {
+  $amun = $1;
 }
 
 # get default settings from info file
@@ -61,7 +66,7 @@ Core settings
 
 Action-specific settings
 -test-s FILE - text to be translated by action 'translate'
--base-system SYSTEM_DIR - base system to be adapted by 'adapt'
+-base-model MODEL_DIR - base model to be adapted by 'adapt'
 
 Optional settings
 -gpu NUMERICAL_ID (default $gpu) - ID of GPU to use
@@ -74,7 +79,7 @@ Actions
 -------
 train:      train a system from scratch
 continue:   continue an interrupted training run
-adapt:      adapt an existing system to a new corpus
+adapt:      adapt an existing model to a new corpus
 get-system: assemble all files for production in folder system
 translate:  translate a sentence with most recent system
 status:     progress status of current run\n")
@@ -87,11 +92,11 @@ unless &GetOptions(
   'test-s=s' => \$test_s,
   'lang-s=s' => \$lang_s,
   'lang-t=s' => \$lang_t,
-  'gpu=i' => \$gpu,
+  'gpu=s' => \$gpu,
   'ensemble=i' => \$ensemble,
   'multiple-models' => \$multiple_models,
   'step-size=i' => \$step_size,
-  'base-system=s' => \$base_system,
+  'base-model=s' => \$base_model,
   'guided-alignment=i' => \$guided_alignment,
   'action=s' => \$action
 ) && defined($action);
@@ -160,52 +165,36 @@ sub continue {
   }
   # possibly change GPU
   if (defined($gpu)) {
-    foreach my $script ("marian.sh","validate.sh") {
-      my @SH = `cat $working_dir/$script`;
-      open(SH,">$working_dir/$script");
-      foreach (@SH) {
-        s/gpu\d+/gpu$gpu/g;
-        print SH $_;
-      }
-      close(SH);
-    }
+    &copy_file("local-settings.sh");
   }
   # resume training
-  &my_system("$working_dir/marian.sh >$working_dir/train.log 2>&1 &");
+  &my_system("$working_dir/marian.sh >$working_dir/marian.continue.log 2>&1 &");
 }
 
 # adapt existing model to new training data
 sub adapt {
-  die("ERROR: base system not specified") if !defined($base_system);
-  die("ERROR: base system '$base_system' does not exist") if ! -e $base_system;
+  die("ERROR: base model not specified") if !defined($base_model);
+  die("ERROR: base model '$base_model' does not exist") if ! -e $base_model;
   &setup_training();
   &copy_corpus();
-  # copy model files, including bpe model files (from system)
-  `cp $base_system/model*iter* $working_dir/model`;
-  `cp $base_system/$lang_s$lang_t.bpe $working_dir/model`;
-  `cp $base_system/train.bpe.??.json $working_dir/data`;
-  # preprocess with given bpe model
+  # copy bpe model files (from base model)
+  `cp -p $base_model/model/$lang_s$lang_t.bpe $working_dir/model`;
+  `cp -p $base_model/data/train.bpe.??.json $working_dir/data`;
+  # preprocess training and dev data with given bpe model
   `$working_dir/preprocess-with-given-bpe.sh`;
-  # score each model
-  my $iter = 0;
-  my $last_model = undef;
-  open(LS,"ls $working_dir/model/model.iter*npz|");
+  # copy most recent model (from base model)
+  `cp -p $base_model/model/model.npz $working_dir/model`;
+  `cp -p $base_model/model/model.npz.yml $working_dir/model`;
+  # copy and score three most recent models
+  open(LS,"ls -tr $base_model/model | grep ^model.iter | grep 'npz\$' | tail -n 3 |");
   while(<LS>) {
     chop;
-    `ln -s $_ $working_dir/model/model.npz.dev.npz`;
-    `ln -s $_.json $working_dir/model/model.npz.dev.npz.json`;
-    `SPEC_MODEL=$_ $working_dir/validate.sh >>$working_dir/train.log 2>&1`; 
-    `rm $working_dir/model/model.npz.dev.npz $working_dir/model/model.npz.dev.npz.json`;
-    if (/iter(\d+)/ && $1 > $iter) {
-      $iter = $1;
-      $last_model = $_;
-    }
+    `cp -p $base_model/model/$_ $working_dir/model`;
+    `SPEC_MODEL=model/$_ $working_dir/validate.sh >>$working_dir/train.log 2>&1`; 
   }
   close(LS);
-  `cp $last_model $working_dir/model/model.npz`;
-  `cp $last_model.json $working_dir/model/model.npz.json`;
   # train 
-  &my_system("$working_dir/marian.sh >>$working_dir/train.log 2>&1 &");
+  &my_system("$working_dir/marian.sh >>$working_dir/marian.log 2>&1 &");
 }
 
 sub translate {
@@ -244,7 +233,7 @@ sub get_system {
   for(my $i=0;$i<$ensemble && $i<@MODEL;$i++) {
     if ($multiple_models) {
       `ln $working_dir/model/$MODEL[$i] $working_dir/system`;
-      &copy_json("$working_dir/model/model.npz.json","$working_dir/system/$MODEL[$i].json","$working_dir/system");
+      &copy_yml("$working_dir/model/model.npz.yml","$working_dir/system/$MODEL[$i].yml","$working_dir/system");
     }
     $MODEL[$i] =~ /iter(\d+).npz/;
     $model_tag .= sprintf("%g",$1/1000)."k";
@@ -252,8 +241,9 @@ sub get_system {
     $model .= "$working_dir/model/$MODEL[$i] " unless $multiple_models;
   }
   if (! $multiple_models) {
-    system("/home/pkoehn/statmt/project/amunmt/scripts/average.py -m $model -o $working_dir/system/model.$model_tag.npz");
-    &copy_json("$working_dir/model/model.npz.json","$working_dir/system/model.$model_tag.npz.json");
+    system("$amun/scripts/average.py -m $model -o $working_dir/system/model.$model_tag.npz");
+    $model = "$working_dir/system/model.$model_tag.npz";
+    &copy_yml("$working_dir/model/model.npz.yml","$working_dir/system/model.$model_tag.npz.yml");
   }
 
   # create nematus translation script
@@ -276,7 +266,7 @@ relative-paths: yes
 beam-size: 12
 devices: [$gpu]
 normalize: yes
-gpu-threads: 1
+gpu-threads: ".scalar(split(/ /,$gpu))."
 
 # scorer configuration
 scorers:\n";
@@ -307,7 +297,7 @@ scorers:\n";
   close(AMUNMT);
 }
 
-sub copy_json {
+sub copy_yml {
   my ($original,$copy) = @_;
   open(IN,$original) || die("ERROR: cannot open $original for read: $!");
   open(OUT,">$copy") || die("ERROR: cannot open $copy for write: $!");
@@ -365,7 +355,7 @@ sub copy_file {
   my ($file,$dir) = @_;
   $dir = $working_dir unless defined($dir);
   my $guided_alignment_cmd  = $guided_alignment ? "python config-guided-alignment.py" : "";
-  my $guided_alignment_prep = $guided_alignment ? "sh get-guided-alignment.sh" : "";
+  my $guided_alignment_prep = $guided_alignment ? "sh get-alignment-guidance.sh" : "";
   open(TEMPLATE,"$RealBin/templates/$file");
   open(INSTANTIATION,">$dir/$file");
   while(<TEMPLATE>) {

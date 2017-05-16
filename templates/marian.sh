@@ -13,13 +13,16 @@ echo "gpu: $GPU"
 SRC="<XXX SRC>"
 TGT="<XXX TGT>"
 
-export THEANO_FLAGS="mode=FAST_RUN,floatX=float32,device=gpu$GPU,on_unused_input=warn"
+# guided alignment training (using nematus)
+SINGLE_GPU=`echo $GPU | awk '{print $1;}'`
+export THEANO_FLAGS="mode=FAST_RUN,floatX=float32,device=gpu$SINGLE_GPU,on_unused_input=warn"
 <XXX GUIDED_ALIGNMENT_CMD>
 
+# kick off training
 $marian --model model/model.npz \
         --devices $GPU --seed 0 \
         --train-sets data/train.bpe.$SRC data/train.bpe.$TGT \
-        --vocabs model/vocab.$SRC.yml model/vocab.$TGT.yml \
+        --vocabs data/train.bpe.$SRC.json data/train.bpe.$TGT.json \
         --dim-vocabs 50000 50000 \
         --dynamic-batching -w 3000 \
         --layer-normalization --dropout-rnn 0.2 --dropout-src 0.1 --dropout-trg 0.1 \
