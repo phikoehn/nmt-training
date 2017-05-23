@@ -10,6 +10,7 @@ my $gpu = 0;
 my $ensemble = 4;
 my $multiple_models = 0;
 my $step_size = 20000;
+my $bpe = 49500;
 my $guided_alignment = 0;
 my ($action,$test_s,$base_model) = (undef,undef,undef);
 my ($model,$model_tag) = ("MODEL","NMT");
@@ -41,6 +42,7 @@ if (defined($working_dir) && -e "$working_dir/info") {
     $dev_t = $2 if $1 eq "dev-t";
     $step_size = $2 if $1 eq "step-size";
     $ensemble = $2 if $1 eq "ensemble";
+    $bpe = $2 if $1 eq "bpe";
     $multiple_models = $2 if $1 eq "multiple-models";
     $guided_alignment = $2 if $1 eq "guided-alignment";
   }
@@ -72,6 +74,7 @@ Optional settings
 -gpu NUMERICAL_ID (default $gpu) - ID of GPU to use
 -ensemble COUNT (defailt $ensemble) - number of models in ensemble
 -multiple-models (defailt $multiple_models) - do not merge models in ensemble
+-bpe (default: $bpe) - number of bpe operations
 -step-size  (default $step_size) - number of iterations per validation
 -guided-alignment (default 0) - prime with specified iterations (e.g., 20000) of guided alignment training
 
@@ -94,6 +97,7 @@ unless &GetOptions(
   'lang-t=s' => \$lang_t,
   'gpu=s' => \$gpu,
   'ensemble=i' => \$ensemble,
+  'bpe=i' => \$bpe,
   'multiple-models' => \$multiple_models,
   'step-size=i' => \$step_size,
   'base-model=s' => \$base_model,
@@ -121,6 +125,7 @@ print INFO "train-t = $train_t\n" if defined($train_t);
 print INFO "dev-s = $dev_s\n" if defined($dev_s);
 print INFO "dev-t = $dev_t\n" if defined($dev_t);
 print INFO "step-size = $step_size\n";
+print INFO "bpe = $bpe\n";
 print INFO "ensemble = $ensemble\n";
 print INFO "multiple-models = $multiple_models\n";
 print INFO "guided-alignment = $guided_alignment\n";
@@ -366,6 +371,7 @@ sub copy_file {
     s/<XXX MODEL>/$model/;
     s/<XXX TEST>/$test_s/g if defined($test_s);
     s/<XXX STEP_SIZE>/$step_size/g;
+    s/<XXX BPE>/$bpe/;
     s/<XXX MODEL_TAG>/$model_tag/g;
     s/<XXX GUIDED_ALIGNMENT_CMD>/$guided_alignment_cmd/g;
     s/<XXX GUIDED_ALIGNMENT_PREP>/$guided_alignment_prep/g;

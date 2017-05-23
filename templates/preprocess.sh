@@ -11,7 +11,7 @@ TRG=<XXX TGT>
 
 # number of merge operations. Network vocabulary should be slightly larger (to include characters),
 # or smaller if the operations are learned on the joint vocabulary
-bpe_operations=49500
+bpe_operations=<XXX BPE>
 
 # clean empty and long sentences, and sentences with high source-target ratio (training corpus only)
 $mosesdecoder/scripts/training/clean-corpus-n.perl data/train.tok $SRC $TRG data/train.tok.clean 1 80
