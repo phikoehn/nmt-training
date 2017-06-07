@@ -26,6 +26,6 @@ $subword_nmt/apply_bpe.py -c model/$SRC$TRG.bpe < data/train.tok.clean.$SRC > da
 $subword_nmt/apply_bpe.py -c model/$SRC$TRG.bpe < data/train.tok.clean.$TRG > data/train.bpe.$TRG
 
 # build network dictionary
-$nematus/../data/build_dictionary.py data/train.bpe.$SRC data/train.bpe.$TRG
+./build_dictionary.py data/train.bpe.$SRC data/train.bpe.$TRG
 
 <XXX GUIDED_ALIGNMENT_PREP>

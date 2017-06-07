@@ -20,10 +20,10 @@ my $qsub = undef;
 if (`grep qsub_settings $RealBin/templates/local-settings.sh` =~ /^export qsub_settings="(.+)"\s*$/) {
   $qsub = $1;
 }
-# from local-settings.sh: amunmt directory
-my $amun;
-if (`grep '^export amun=' $RealBin/templates/local-settings.sh` =~ /^export amun=(.+)\/build\/amun\s*$/) {
-  $amun = $1;
+# from local-settings.sh: marian directory
+my $marian_dir;
+if (`grep '^export marian=' $RealBin/templates/local-settings.sh` =~ /^export marian=(.+\S)\s*$/) {
+  $marian_dir = $1;
 }
 
 # get default settings from info file
@@ -158,22 +158,27 @@ sub train {
   &setup_training();
   &copy_corpus();
   `$working_dir/preprocess.sh`;
-  &my_system("$working_dir/marian.sh >$working_dir/marian.log 2>&1 &");
+  if ($guided_alignment) {
+    &my_system("$working_dir/marian-guided-alignment.sh >$working_dir/marian-guided-alignment.log 2>&1 &");
+  }
+  else {
+    &my_system("$working_dir/marian.sh >$working_dir/marian.log 2>&1 &");
+  }
 }
 
 # continue training
 sub continue {
-  # remove guided alignment priming 
-  if ($guided_alignment) {
-    $guided_alignment = 0;
-    &copy_file("marian.sh");
-  }
   # possibly change GPU
   if (defined($gpu)) {
     &copy_file("local-settings.sh");
   }
   # resume training
+  #if ($guided_alignment) {
+  #  &my_system("$working_dir/marian-guided-alignment.sh >$working_dir/marian-guided-alignment.continue.log 2>&1 &");
+  #}
+  #else {
   &my_system("$working_dir/marian.sh >$working_dir/marian.continue.log 2>&1 &");
+  #}
 }
 
 # adapt existing model to new training data
@@ -246,7 +251,7 @@ sub get_system {
     $model .= "$working_dir/model/$MODEL[$i] " unless $multiple_models;
   }
   if (! $multiple_models) {
-    system("$amun/scripts/average.py -m $model -o $working_dir/system/model.$model_tag.npz");
+    system("$marian_dir/scripts/average.py -m $model -o $working_dir/system/model.$model_tag.npz");
     $model = "$working_dir/system/model.$model_tag.npz";
     &copy_yml("$working_dir/model/model.npz.yml","$working_dir/system/model.$model_tag.npz.yml");
   }
@@ -359,7 +364,6 @@ sub copy_corpus {
 sub copy_file {
   my ($file,$dir) = @_;
   $dir = $working_dir unless defined($dir);
-  my $guided_alignment_cmd  = $guided_alignment ? "python config-guided-alignment.py" : "";
   my $guided_alignment_prep = $guided_alignment ? "sh get-alignment-guidance.sh" : "";
   open(TEMPLATE,"$RealBin/templates/$file");
   open(INSTANTIATION,">$dir/$file");
@@ -373,9 +377,8 @@ sub copy_file {
     s/<XXX STEP_SIZE>/$step_size/g;
     s/<XXX BPE>/$bpe/;
     s/<XXX MODEL_TAG>/$model_tag/g;
-    s/<XXX GUIDED_ALIGNMENT_CMD>/$guided_alignment_cmd/g;
     s/<XXX GUIDED_ALIGNMENT_PREP>/$guided_alignment_prep/g;
-    s/<XXX GUIDED_ALIGNMENT>/$guided_alignment/g;
+    s/<XXX PRIME_BATCHES>/$guided_alignment/g;
     print INSTANTIATION $_;
   }
   close(INSTANTIATION);

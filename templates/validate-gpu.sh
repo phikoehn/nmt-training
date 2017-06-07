@@ -19,10 +19,10 @@ then
 else
   MODEL=`ls -t model/model.iter*npz | head -1`
 fi
-cp model/model.npz.json $MODEL.json
 
 # decode
-$amun -d $GPU \
+$marian/build/amun \
+      -d $GPU \
       -n --wipo \
       -s data/train.bpe.<XXX SRC>.json \
       -t data/train.bpe.<XXX TGT>.json \
