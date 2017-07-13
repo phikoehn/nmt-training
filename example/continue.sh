@@ -4,4 +4,4 @@
 
 /opt/nmt/nmt-training/train-model.perl \
      -action continue \
-     -dir /home/administrator/nmt-training/ja-en-lnu/toy-multiple-gpu
+     -dir /home/sysadmin/nmt-training/$1/v$2

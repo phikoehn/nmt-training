@@ -8,4 +8,4 @@
 
 /opt/nmt/nmt-training/train-model.perl \
       -action get-system \
-      -dir /home/administrator/nmt-training/ja-en-lnu/toy
+      -dir /home/sysadmin/nmt-training/$1/v$2

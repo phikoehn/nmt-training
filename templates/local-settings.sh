@@ -17,7 +17,7 @@ export subword_nmt=/opt/nmt/subword-nmt
 export fast_align=/opt/nmt/fast_align/build
 
 # path to marian 
-export marian=/opt/nmt/marian-xml
+export marian=-/opt/nmt/marian-refactor-rnn
 
 # execution of validation script
 export validate=./fork-validate.sh

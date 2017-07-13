@@ -5,6 +5,7 @@
 
 /opt/nmt/nmt-training/train-model.perl \
    -action train \
+   -deep \
    -dir /home/administrator/nmt-training/ja-en-lnu/toy \
    -train-s /home/administrator/nmt-training/ja-en-lnu/toy-data/train.tok.clean.ja \
    -train-t /home/administrator/nmt-training/ja-en-lnu/toy-data/train.tok.clean.en \
