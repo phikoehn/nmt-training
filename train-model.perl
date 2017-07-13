@@ -6,6 +6,7 @@ use FindBin qw($RealBin);
 
 # configurable variables
 my ($working_dir,$train_s,$train_t,$dev_s,$dev_t,$lang_s,$lang_t);
+my $deep = 0;
 my $gpu = 0;
 my $ensemble = 4;
 my $multiple_models = 0;
@@ -43,6 +44,7 @@ if (defined($working_dir) && -e "$working_dir/info") {
     $step_size = $2 if $1 eq "step-size";
     $ensemble = $2 if $1 eq "ensemble";
     $bpe = $2 if $1 eq "bpe";
+    $deep = $2 if $1 eq "deep";
     $multiple_models = $2 if $1 eq "multiple-models";
     $guided_alignment = $2 if $1 eq "guided-alignment";
   }
@@ -72,11 +74,12 @@ Action-specific settings
 
 Optional settings
 -gpu NUMERICAL_ID (default $gpu) - ID of GPU to use
--ensemble COUNT (defailt $ensemble) - number of models in ensemble
+-ensemble COUNT (default $ensemble) - number of models in ensemble
 -multiple-models (defailt $multiple_models) - do not merge models in ensemble
 -bpe (default: $bpe) - number of bpe operations
 -step-size  (default $step_size) - number of iterations per validation
 -guided-alignment (default 0) - prime with specified iterations (e.g., 20000) of guided alignment training
+-deep (default 0) - train a deep model
 
 Actions
 -------
@@ -102,6 +105,7 @@ unless &GetOptions(
   'step-size=i' => \$step_size,
   'base-model=s' => \$base_model,
   'guided-alignment=i' => \$guided_alignment,
+  'deep' => \$deep,
   'action=s' => \$action
 ) && defined($action);
 
@@ -125,6 +129,7 @@ print INFO "train-t = $train_t\n" if defined($train_t);
 print INFO "dev-s = $dev_s\n" if defined($dev_s);
 print INFO "dev-t = $dev_t\n" if defined($dev_t);
 print INFO "step-size = $step_size\n";
+print INFO "deep = $deep\n";
 print INFO "bpe = $bpe\n";
 print INFO "ensemble = $ensemble\n";
 print INFO "multiple-models = $multiple_models\n";
@@ -160,6 +165,9 @@ sub train {
   `$working_dir/preprocess.sh`;
   if ($guided_alignment) {
     &my_system("$working_dir/marian-guided-alignment.sh >$working_dir/marian-guided-alignment.log 2>&1 &");
+  }
+  elsif ($deep) {
+    &my_system("$working_dir/marian-deep.sh >$working_dir/marian-deep.log 2>&1 &");
   }
   else {
     &my_system("$working_dir/marian.sh >$working_dir/marian.log 2>&1 &");
@@ -216,7 +224,7 @@ sub translate {
 sub get_system {
   die("ERROR: you need to specify source language with -lang-s") unless defined($lang_s);
   die("ERROR: you need to specify target language with -lang-t") unless defined($lang_t);
-  die("ERROR: could not fine byte pair encoding model $working_dir/model/$lang_s$lang_t.bpe") unless -e "$working_dir/model/$lang_s$lang_t.bpe";
+  die("ERROR: could not find byte pair encoding model $working_dir/model/$lang_s$lang_t.bpe") unless -e "$working_dir/model/$lang_s$lang_t.bpe";
   my @MODEL = `ls $working_dir/model/* | grep 'model.iter' | grep 'npz\$'`;
   chop(@MODEL);
   die("ERROR: No single model finished ... cannot build system yet.") unless scalar @MODEL;
@@ -351,6 +359,8 @@ sub setup_training {
     &copy_file($file);
   }
   close(FILE);
+  `mv $working_dir/validate-deep.sh $working_dir/validate.sh` if $deep;
+  `rm $working_dir/validate-deep.sh` unless $deep;
   `chmod +x $working_dir/*.sh`;
 }
 
